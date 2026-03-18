@@ -1,0 +1,25 @@
+# Quarto
+*_files/
+*.html
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+
+# Datos
+datos/
+datos_limpios/
+
+# Gráficos
+graficos/
+*.png
+*.jpg
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Otros
+*.log
+*.tmp
