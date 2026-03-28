@@ -1,0 +1,55 @@
+---
+title: "Untitled"
+format: html
+editor: visual
+---
+
+```{r}
+setwd("~/CURSOS/data science/mundos_E/Hackaton/Hackaton")
+library (readxl)
+dfh <- read_excel("usu_hogar_T325.xlsx")
+dfi <- read_excel("usu_individual_T325.xlsx")
+
+```
+
+```{r}
+dfh
+attach(dfh)
+dfh <- dfh %>%
+  mutate(ing_desemp = case_when( V3 == 1 | V4 == 1 ~ 1,   
+    V3 == 0 & V4 == 0 ~ 0)) #creo vble para juntar V3 y V4
+dfh <- dfh %>%
+  mutate(ing_t_gub = case_when( V5_01 == 1 | V5_02 == 1 ~ 1,   
+    V5_01 == 0 & V5_02 == 0 ~ 0)) #creo vble para juntar V5_1 y V5_2
+dfh <- dfh %>%
+  mutate(ay_esp = case_when( V6 == 1 | V7 == 1 ~ 1,   
+    V6 == 0 & V7 == 0 ~ 0)) #creo vble para juntar V6 y V7
+dfh <- dfh %>%
+  mutate(ing_pas = case_when( V8 == 1 | V9 == 1 | V10 == 1 ~ 1,   
+    V8 == 0 & V9 == 0 & V10 == 0 ~ 0)) #creo vble para juntar V8, V9 y V10
+dfh <- dfh %>%
+  mutate(becas = case_when( V11_01 == 1 | V11_02 == 1 ~ 1,   
+    V11_01 == 0 & V11_02 == 0 ~ 0)) #creo vble para juntar V11_1 y V11_2
+```
+
+Creo las siguientes vbles para simplificar:
+
+ing_desemp
+
+ay_esp
+
+ing_pas
+
+becas
+
+```{r}
+attach(dfi)
+summary(H15)
+library(tidyverse)
+dfi1 <- dfi %>% 
+  mutate(across(c( H15, CH03, CH04, PP04B_COD),
+                ~na_if(., 9)))
+dfh1 <- dfh %>% 
+  mutate(across(c(IPCF,	RDECIFR, V13, V14, V15, V16, V17),
+                ~na_if(., 9)))
+```
