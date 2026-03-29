@@ -5,6 +5,7 @@ editor: visual
 ---
 
 ```{r}
+rm(list = ls())
 setwd("~/CURSOS/data science/mundos_E/Hackaton/Hackaton")
 library (readxl)
 dfh <- read_excel("usu_hogar_T325.xlsx")
@@ -17,19 +18,19 @@ dfh
 attach(dfh)
 dfh <- dfh %>%
   mutate(ing_desemp = case_when( V3 == 1 | V4 == 1 ~ 1,   
-    V3 == 0 & V4 == 0 ~ 0)) #creo vble para juntar V3 y V4
+    V3 == 2 & V4 == 2 ~ 2)) #creo vble para juntar V3 y V4
 dfh <- dfh %>%
   mutate(ing_t_gub = case_when( V5_01 == 1 | V5_02 == 1 ~ 1,   
-    V5_01 == 0 & V5_02 == 0 ~ 0)) #creo vble para juntar V5_1 y V5_2
+    V5_01 == 2 & V5_02 == 2 ~ 2)) #creo vble para juntar V5_1 y V5_2
 dfh <- dfh %>%
   mutate(ay_esp = case_when( V6 == 1 | V7 == 1 ~ 1,   
-    V6 == 0 & V7 == 0 ~ 0)) #creo vble para juntar V6 y V7
+    V6 == 2 & V7 == 2 ~ 2)) #creo vble para juntar V6 y V7
 dfh <- dfh %>%
   mutate(ing_pas = case_when( V8 == 1 | V9 == 1 | V10 == 1 ~ 1,   
-    V8 == 0 & V9 == 0 & V10 == 0 ~ 0)) #creo vble para juntar V8, V9 y V10
+    V8 == 2 & V9 == 2 & V10 == 0 ~ 2)) #creo vble para juntar V8, V9 y V10
 dfh <- dfh %>%
   mutate(becas = case_when( V11_01 == 1 | V11_02 == 1 ~ 1,   
-    V11_01 == 0 & V11_02 == 0 ~ 0)) #creo vble para juntar V11_1 y V11_2
+    V11_01 == 2 & V11_02 == 2 ~ 2)) #creo vble para juntar V11_1 y V11_2
 ```
 
 Creo las siguientes vbles para simplificar:
@@ -43,13 +44,101 @@ ing_pas
 becas
 
 ```{r}
-attach(dfi)
-summary(H15)
 library(tidyverse)
+
 dfi1 <- dfi %>% 
   mutate(across(c( H15, CH03, CH04, PP04B_COD),
                 ~na_if(., 9)))
+summary(dfi1)
+
 dfh1 <- dfh %>% 
-  mutate(across(c(IPCF,	RDECIFR, V13, V14, V15, V16, V17),
+  mutate(across(c(IPCF,	RDECIFR, V13, V14, V15, V16, V17, ing_desemp, ay_esp, ing_pas,becas),
                 ~na_if(., 9)))
+summary(dfh1)
+
 ```
+
+“Los valores ‘No sabe/No responde’ fueron tratados como valores perdidos (NA) y, en caso de afectar múltiples variables del bloque de endeudamiento, se excluyeron para evitar sesgos en el índice.”
+
+## resumen de las varaibles de endeudamiento
+
+```{r}
+summary(dfh1[, c("V13","V14","V15","V16","V17")])
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+ dfh1 %>% 
+  select(V13:V17) %>% 
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "valor") %>% 
+  group_by(variable, valor) %>% 
+  summarise(n = n(), .groups = "drop") %>% 
+  group_by(variable) %>% 
+  mutate(porcentaje = round(100 * n / sum(n), 2))
+
+```
+
+Resumen integrado de estrategias de los hogares 🔹 Resultados clave
+
+V13 (uso de ahorros): 29.3%
+
+V14 (préstamos familiares/amigos): 13.5%
+
+V15 (préstamos bancarios): 13.8%
+
+V16 (compras en cuotas/fiado): 51.2%
+
+V17 (venta de bienes): 7.6%
+
+NA en todas: ≈ 0.03% → despreciable
+
+Ahora, filtro la base dfi1 para ver estas variables en los hogares cuya jefa de hogar es mujer:
+
+Para ello, utilizo las variables que vinculan ambas bases (CODUSU, NRO_HOGAR). Lo vinculo con el comando inner_join. Este comando permite unificar dos data frames mediante vbles compartidas pero elimina las filas no coincidentes (PARA TENER EN CUENTA)
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+m_jefas_hogar <- dfi1 %>%
+  filter(CH03 == 1, CH04 == 2) %>%
+  select(CODUSU, NRO_HOGAR)
+
+dfh1_mujeres <- dfh1 %>%
+  inner_join(m_jefas_hogar, by = c("CODUSU", "NRO_HOGAR"))
+
+total_poblacion <- dfh1 %>%
+  select(V13:V17) %>%
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "valor") %>%
+  nrow()
+
+jefas_claves <- dfh1_mujeres %>%
+  select(V13:V17) %>%
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "valor") %>%
+  group_by(variable, valor) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(variable) %>%
+  mutate(porcentaje = round(100 * n / total_poblacion, 2))
+
+jefas_claves
+```
+
+Cuando observamos nuevamente estas vbles vemos que para las jefas de hogar:
+
+V13 (uso de ahorros): 2.77%
+
+V14 (préstamos familiares/amigos): 1.42%
+
+V15 (préstamos bancarios): 1.34%
+
+V16 (compras en cuotas/fiado): 4.82%
+
+V17 (venta de bienes): 0.76%
