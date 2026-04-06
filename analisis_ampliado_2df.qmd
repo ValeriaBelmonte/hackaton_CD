@@ -14,7 +14,7 @@ dfi <- read_excel("usu_individual_T325.xlsx")
 ```
 
 ```{r}
-dfh
+library(tidyverse)
 attach(dfh)
 dfh <- dfh %>%
   mutate(ing_desemp = case_when( V3 == 1 | V4 == 1 ~ 1,   
@@ -60,7 +60,7 @@ summary(dfh1)
 
 “Los valores ‘No sabe/No responde’ fueron tratados como valores perdidos (NA) y, en caso de afectar múltiples variables del bloque de endeudamiento, se excluyeron para evitar sesgos en el índice.”
 
-## resumen de las varaibles de endeudamiento
+## resumen de las variables de endeudamiento
 
 ```{r}
 summary(dfh1[, c("V13","V14","V15","V16","V17")])
@@ -70,7 +70,7 @@ summary(dfh1[, c("V13","V14","V15","V16","V17")])
 library(dplyr)
 library(tidyr)
 
- dfh1 %>% 
+ poblacion_total <- dfh1 %>% 
   select(V13:V17) %>% 
   pivot_longer(cols = everything(),
                names_to = "variable",
@@ -80,21 +80,53 @@ library(tidyr)
   group_by(variable) %>% 
   mutate(porcentaje = round(100 * n / sum(n), 2))
 
+poblacion_total
 ```
 
 Resumen integrado de estrategias de los hogares 🔹 Resultados clave
 
-V13 (uso de ahorros): 29.3%
+V13 (uso de ahorros): 29.33%
 
-V14 (préstamos familiares/amigos): 13.5%
+V14 (préstamos familiares/amigos): 13.54%
 
-V15 (préstamos bancarios): 13.8%
+V15 (préstamos bancarios): 13.82%
 
-V16 (compras en cuotas/fiado): 51.2%
+V16 (compras en cuotas/fiado): 51.22%
 
-V17 (venta de bienes): 7.6%
+V17 (venta de bienes): 7.57%
 
 NA en todas: ≈ 0.03% → despreciable
+
+```{r}
+library(ggplot2)
+
+resumen <- data.frame(
+  variable = c("Uso de ahorros", 
+               "Préstamos familiares", 
+               "Préstamos bancarios", 
+               "Compras en cuotas", 
+               "Venta de bienes"),
+  porcentaje = c(29.33, 13.54, 13.82, 51.22, 7.57)
+)
+
+ggplot(resumen, aes(x = reorder(variable, porcentaje), y = porcentaje)) +
+  geom_col(fill = "#2C7FB8") +
+  geom_text(aes(label = paste0(porcentaje, "%")), 
+            hjust = -0.1, size = 4) +
+  coord_flip() +
+  labs(
+    title = "Estrategias económicas y financieras de los hogares",
+    subtitle = "EPH - Uso de mecanismos de financiamiento",
+    x = "",
+    y = "Porcentaje de hogares"
+  ) +
+  ylim(0, 80) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text.y = element_text(size = 11)
+  )
+```
 
 Ahora, filtro la base dfi1 para ver estas variables en los hogares cuya jefa de hogar es mujer:
 
@@ -111,34 +143,67 @@ m_jefas_hogar <- dfi1 %>%
 dfh1_mujeres <- dfh1 %>%
   inner_join(m_jefas_hogar, by = c("CODUSU", "NRO_HOGAR"))
 
-total_poblacion <- dfh1 %>%
-  select(V13:V17) %>%
-  pivot_longer(cols = everything(),
-               names_to = "variable",
-               values_to = "valor") %>%
-  nrow()
-
+# Distribución de mujeres endeudadas
 jefas_claves <- dfh1_mujeres %>%
   select(V13:V17) %>%
   pivot_longer(cols = everything(),
                names_to = "variable",
                values_to = "valor") %>%
   group_by(variable, valor) %>%
-  summarise(n = n(), .groups = "drop") %>%
-  group_by(variable) %>%
-  mutate(porcentaje = round(100 * n / total_poblacion, 2))
+  summarise(n_mujeres = n(), .groups = "drop")
 
-jefas_claves
+# Comparación con el total de endeudados
+comparacion <- jefas_claves %>%
+  left_join(poblacion_total, by = c("variable", "valor")) %>%
+  group_by(variable, valor) %>%
+  mutate(porcentaje_mujeres = round(100 * n_mujeres / n, 2))
+
+comparacion
 ```
 
-Cuando observamos nuevamente estas vbles vemos que para las jefas de hogar:
+Cuando observamos nuevamente estas vbles vemos que los porcentajes de endeudamiento de las jefas de hogar, con respecto al total de endeudados, son:
 
-V13 (uso de ahorros): 2.77%
+V13 (uso de ahorros): 47,23%
 
-V14 (préstamos familiares/amigos): 1.42%
+V14 (préstamos familiares/amigos): 52,63%
 
-V15 (préstamos bancarios): 1.34%
+V15 (préstamos bancarios): 48,49%
 
-V16 (compras en cuotas/fiado): 4.82%
+V16 (compras en cuotas/fiado): 47,07%
 
-V17 (venta de bienes): 0.76%
+V17 (venta de bienes): 50,12%
+
+En esto se refleja el mayor peso relativo que tiene el endeudamiento informal con familiares y amigos.
+
+```{r}
+library(ggplot2)
+
+resumen <- data.frame(
+  variable = c("Uso de ahorros", 
+               "Préstamos familiares", 
+               "Préstamos bancarios", 
+               "Compras en cuotas", 
+               "Venta de bienes"),
+  porcentaje = c(47.23, 52.63, 48.49, 47.07, 50.12)
+)
+
+ggplot(resumen, aes(x = reorder(variable, porcentaje), y = porcentaje)) +
+  geom_col(fill = "#2C7FB8") +
+  geom_text(aes(label = paste0(porcentaje, "%")), 
+            hjust = -0.1, size = 4) +
+  coord_flip() +
+  labs(
+    title = "Estrategias económicas y financieras de los hogares",
+    subtitle = "EPH - proporción: jefas de hogar - total de hogares impactados",
+    x = "",
+    y = "Porcentaje de hogares"
+  ) +
+  ylim(0, 80) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text.y = element_text(size = 11)
+  )
+```
+
+Es mayor su participación en los mecanismos informales con respecto a la de los formales.
