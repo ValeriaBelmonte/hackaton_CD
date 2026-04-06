@@ -207,3 +207,63 @@ ggplot(resumen, aes(x = reorder(variable, porcentaje), y = porcentaje)) +
 ```
 
 Es mayor su participación en los mecanismos informales con respecto a la de los formales.
+
+Luego, analizamos el comportamiento de los hogares según décil de ingreso:\
+
+```{r}
+# vemos que tiene DECIFR
+
+summary(dfh1[,"DECIFR"])
+```
+
+```{r}
+#recodifico y
+#elimino las uniades de análisis que no respondieron
+library(dplyr)
+
+dfh2 <- dfh1 %>% 
+  mutate(
+    across(c(V13, V14, V15, V16, V17),
+           ~case_when(
+             . == 1 ~ 1,
+             . == 2 ~ 0,
+             TRUE ~ NA_real_
+           ))
+  ) %>% 
+  filter(DECIFR %in% 1:10)
+
+```
+
+```{r}
+#controlo que l codificacón este bien
+table(dfh2$V13, useNA = "ifany")
+table(dfh2$V14, useNA = "ifany")
+table(dfh2$V15, useNA = "ifany")
+table(dfh2$V16, useNA = "ifany")
+table(dfh2$V17, useNA = "ifany")
+```
+
+```{r}
+tabla_ingreso <- dfh2 %>% 
+  select(DECIFR, V13, V14, V15, V16, V17) %>% 
+  pivot_longer(cols = c(V13, V14, V15, V16, V17),
+               names_to = "variable",
+               values_to = "si") %>% 
+  filter(!is.na(DECIFR), !is.na(si)) %>% 
+  group_by(DECIFR, variable) %>% 
+  summarise(porcentaje = mean(si, na.rm = TRUE) * 100, .groups = "drop") %>% 
+  mutate(
+    variable = recode(variable,
+      V13 = "Uso de ahorros",
+      V14 = "Préstamos familiares",
+      V15 = "Préstamos bancarios",
+      V16 = "Compras en cuotas",
+      V17 = "Venta de bienes"
+    )
+  )
+tabla_ingreso
+```
+
+Los hogares de menores ingresos (primer decil) utilizan en mayor medida las compras en cuotas para financiarse (31,10%) con respecto a las demás estrategias analizadas. Detrás de ellos vienen el uso de ahorros (25,93%) y los préstamos familiares (19,24%).
+
+Dicha tendencia se potencia a lo largo de los déciles, rompiéndose esta estructura en el sexto decil. Donde, el préstamo bancario reemplaza (como tercera fuerza) a los préstamos familiares. Este cambio de tendencia se potencia a partir del sexto decil.
