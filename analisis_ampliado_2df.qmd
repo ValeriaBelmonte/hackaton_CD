@@ -267,3 +267,35 @@ tabla_ingreso
 Los hogares de menores ingresos (primer decil) utilizan en mayor medida las compras en cuotas para financiarse (31,10%) con respecto a las demás estrategias analizadas. Detrás de ellos vienen el uso de ahorros (25,93%) y los préstamos familiares (19,24%).
 
 Dicha tendencia se potencia a lo largo de los déciles, rompiéndose esta estructura en el sexto decil. Donde, el préstamo bancario reemplaza (como tercera fuerza) a los préstamos familiares. Este cambio de tendencia se potencia a partir del sexto decil.
+
+```{r}
+#str(tabla_ingreso$DECIFR)
+# esta como numero
+#lo transformo a factor
+
+tabla_ingreso$DECIFR<-as.factor(tabla_ingreso$DECIFR)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(tabla_ingreso, 
+       aes(x = DECIFR, y = porcentaje, 
+           color = variable, group = variable)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2) +
+  scale_x_discrete(labels = paste0("D", 1:10))+
+  scale_y_continuous(breaks = seq(0, 100, by = 10))+
+  labs(
+    title = "Estrategias económicas de los hogares según nivel de ingreso",
+    subtitle = "Porcentaje de hogares por decil de ingreso",
+    x = "Decil de ingreso (1 = más bajo, 10 = más alto)",
+    y = "Porcentaje de hogares",
+    color = ""
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "bottom")+
+  guides(color = guide_legend(nrow = 2, byrow = TRUE))
+```
