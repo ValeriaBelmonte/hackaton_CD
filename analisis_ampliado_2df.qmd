@@ -115,7 +115,7 @@ ggplot(resumen, aes(x = reorder(variable, porcentaje), y = porcentaje)) +
             hjust = -0.1, size = 4) +
   coord_flip() +
   labs(
-    title = "Estrategias económicas y financieras de los hogares",
+    title = "Estrategias financieras de los hogares",
     subtitle = "EPH - Uso de mecanismos de financiamiento",
     x = "",
     y = "Porcentaje de hogares"
@@ -161,7 +161,7 @@ comparacion <- jefas_claves %>%
 comparacion
 ```
 
-Cuando observamos nuevamente estas vbles vemos que los porcentajes de endeudamiento de las jefas de hogar, con respecto al total de endeudados, son:
+Cuando observamos nuevamente estas vbles, vemos que los porcentajes de endeudamiento de los hogares de las jefas de hogar, con respecto al total de endeudados, son:
 
 V13 (uso de ahorros): 47,23%
 
@@ -193,8 +193,8 @@ ggplot(resumen, aes(x = reorder(variable, porcentaje), y = porcentaje)) +
             hjust = -0.1, size = 4) +
   coord_flip() +
   labs(
-    title = "Estrategias económicas y financieras de los hogares",
-    subtitle = "EPH - proporción: jefas de hogar - total de hogares impactados",
+    title = "Estrategias financieras de los hogares",
+    subtitle = "EPH - proporción: hogares de jefas de hogar - total de endeudados",
     x = "",
     y = "Porcentaje de hogares"
   ) +
@@ -202,6 +202,7 @@ ggplot(resumen, aes(x = reorder(variable, porcentaje), y = porcentaje)) +
   theme_minimal() +
   theme(
     plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(hjust = 0),
     axis.text.y = element_text(size = 11)
   )
 ```
@@ -299,3 +300,53 @@ ggplot(tabla_ingreso,
     legend.position = "bottom")+
   guides(color = guide_legend(nrow = 2, byrow = TRUE))
 ```
+
+#auxiliares
+
+## Caracterización socio demografica de los encuestados
+
+## Trabajan y tienen jubilación
+
+Cuantas personas viven cobran jubilación, varaible V2
+
+```{r}
+table(dfh1$V2)
+```
+
+de Ambas
+
+```{r}
+table (dfh1$V1,dfh1$V2)
+```
+
+Asociación entre las variables
+
+Ha que crear un data frame eliminado los datos que tienen 9 (que son 4) para no tener cudad en las pruebas
+
+```{r}
+t_y_J<-dfh %>% select(V1, V2) %>% filter(V1!=9&V2!=9)
+```
+
+```{r}
+table (t_y_J$V1,t_y_J$V2) 
+chisq.test(table (t_y_J$V1,t_y_J$V2)) 
+round(100*prop.table(table (t_y_J$V1,t_y_J$V2)),1) 
+residuals(chisq.test(table (t_y_J$V1,t_y_J$V2)))
+```
+
+Quiero ver si tiene sentido agrupar estas variables de endeudamiento en una y, además, ver si están correlacionadas con las que identificamos como críticas en términos financieros (desahorro y venta de bienes personales)
+
+```{r}
+deuda_3 <- table(dfh1$V14, dfh1$V15, dfh1$V16)
+df_deuda_3 <- as.data.frame(deuda_3)
+names(df_deuda_3) <- c("V14", "V15", "V16", "Freq")
+head(df_deuda_3)
+modelo_glm <- glm(Freq ~ V14 * V15 * V16,
+                  family = poisson, data = df_deuda_3)
+summary(modelo_glm)
+
+```
+
+Como el valor p es \<0,05 podemos rechazar que no hay significatividad estadística en la asociación de las 3 vbles de endeudamiento. Entonces, como están relacionadas, tiene sentido crear una variable dependiente binaria resultante de valores positivos en una o más de estas 3 vbles para ver endeudamiento en términos agregados.
+
+De todas formas, podría hacerse una distinción entre el endeudamiento formal e informal tomando las variables por separado como variables dependientes.
