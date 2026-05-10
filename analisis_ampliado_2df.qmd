@@ -350,3 +350,10 @@ summary(modelo_glm)
 Como el valor p es \<0,05 podemos rechazar que no hay significatividad estadística en la asociación de las 3 vbles de endeudamiento. Entonces, como están relacionadas, tiene sentido crear una variable dependiente binaria resultante de valores positivos en una o más de estas 3 vbles para ver endeudamiento en términos agregados.
 
 De todas formas, podría hacerse una distinción entre el endeudamiento formal e informal tomando las variables por separado como variables dependientes.
+
+```{r}
+dfh1$endeudado <- ifelse(rowSums(dfh1[, c("V14", "V15", "V16")] == 1) > 0,1,
+ifelse(rowSums(dfh1[, c("V14", "V15", "V16")] == 2)== 3, 0, NA))
+
+summary(dfh1[,"endeudado"])
+```
