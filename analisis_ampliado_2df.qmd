@@ -37,6 +37,8 @@ Creo las siguientes vbles para simplificar:
 
 ing_desemp
 
+ing_t_gub
+
 ay_esp
 
 ing_pas
@@ -357,3 +359,13 @@ ifelse(rowSums(dfh1[, c("V14", "V15", "V16")] == 2)== 3, 0, NA))
 
 summary(dfh1[,"endeudado"])
 ```
+
+Podemos hacer una primera aproximación al modelo LOGIT. Para ello, usaremos como variable dependiente la probabilidad de que un hogar tenga alguna deuda (de al menos 1 de sus miembros).
+
+En base a los análisis anteriores podríamos considerar relevantes, para una primera aproximación al modelo, a las variables independientes:
+
+V1 - N (1) - ¿En los últimos tres meses, las personas de este hogar han vivido...de lo que ganan en el trabajo? 1 = Sí y 2 = No. Permite analizar la situación de los endeudados.
+
+V2 - N (1) - ...de alguna jubilación o pensión? 1 = Sí y 2 = No. Permite analizar la situación de los endeudados.
+
+Para los modelos de variable binaria dependiente como logit y probit se requiere que los errores sean heterocedástico-robustos (Stock y Watson C11).
