@@ -26,8 +26,10 @@ dfh <- dfh %>%
   mutate(ay_esp = case_when( V6 == 1 | V7 == 1 ~ 1,   
     V6 == 2 & V7 == 2 ~ 2)) #creo vble para juntar V6 y V7
 dfh <- dfh %>%
-  mutate(ing_pas = case_when( V8 == 1 | V9 == 1 | V10 == 1 ~ 1,   
-    V8 == 2 & V9 == 2 & V10 == 0 ~ 2)) #creo vble para juntar V8, V9 y V10
+  mutate(ing_pas = case_when(
+    V8 == 1 | V9 == 1 | V10 == 1 ~ 1,
+    V8 == 2 & V9 == 2 & V10 == 2 ~ 2,
+    TRUE ~ NA_real_)) #creo vble para juntar V8, V9 y V10
 dfh <- dfh %>%
   mutate(becas = case_when( V11_01 == 1 | V11_02 == 1 ~ 1,   
     V11_01 == 2 & V11_02 == 2 ~ 2)) #creo vble para juntar V11_1 y V11_2
@@ -305,7 +307,7 @@ ggplot(tabla_ingreso,
 
 #auxiliares
 
-## Caracterización socio demografica de los encuestados
+## Caracterización sociodemográfica de los encuestados
 
 ## Trabajan y tienen jubilación
 
@@ -323,7 +325,7 @@ table (dfh1$V1,dfh1$V2)
 
 Asociación entre las variables
 
-Ha que crear un data frame eliminado los datos que tienen 9 (que son 4) para no tener cudad en las pruebas
+Hay que crear un data frame eliminando los datos que tienen 9 (que son 4) para no tener cudad en las pruebas
 
 ```{r}
 t_y_J<-dfh %>% select(V1, V2) %>% filter(V1!=9&V2!=9)
@@ -336,26 +338,15 @@ round(100*prop.table(table (t_y_J$V1,t_y_J$V2)),1)
 residuals(chisq.test(table (t_y_J$V1,t_y_J$V2)))
 ```
 
-Quiero ver si tiene sentido agrupar estas variables de endeudamiento en una y, además, ver si están correlacionadas con las que identificamos como críticas en términos financieros (desahorro y venta de bienes personales)
+Creo la variable dependiente para el logit:
 
 ```{r}
-deuda_3 <- table(dfh1$V14, dfh1$V15, dfh1$V16)
-df_deuda_3 <- as.data.frame(deuda_3)
-names(df_deuda_3) <- c("V14", "V15", "V16", "Freq")
-head(df_deuda_3)
-modelo_glm <- glm(Freq ~ V14 * V15 * V16,
-                  family = poisson, data = df_deuda_3)
-summary(modelo_glm)
-
-```
-
-Como el valor p es \<0,05 podemos rechazar que no hay significatividad estadística en la asociación de las 3 vbles de endeudamiento. Entonces, como están relacionadas, tiene sentido crear una variable dependiente binaria resultante de valores positivos en una o más de estas 3 vbles para ver endeudamiento en términos agregados.
-
-De todas formas, podría hacerse una distinción entre el endeudamiento formal e informal tomando las variables por separado como variables dependientes.
-
-```{r}
-dfh1$endeudado <- ifelse(rowSums(dfh1[, c("V14", "V15", "V16")] == 1) > 0,1,
-ifelse(rowSums(dfh1[, c("V14", "V15", "V16")] == 2)== 3, 0, NA))
+dfh1 <- dfh1 %>%
+  mutate(endeudado = case_when(
+    rowSums(across(c(V14, V15, V16), ~ . == 1)) > 0 ~ 1,
+    rowSums(across(c(V14, V15, V16), ~ . == 2)) == 3 ~ 0,
+    TRUE ~ NA_real_
+  ))
 
 summary(dfh1[,"endeudado"])
 ```
@@ -364,8 +355,62 @@ Podemos hacer una primera aproximación al modelo LOGIT. Para ello, usaremos com
 
 En base a los análisis anteriores podríamos considerar relevantes, para una primera aproximación al modelo, a las variables independientes:
 
-V1 - N (1) - ¿En los últimos tres meses, las personas de este hogar han vivido...de lo que ganan en el trabajo? 1 = Sí y 2 = No. Permite analizar la situación de los endeudados.
+V1 - ¿En los últimos tres meses, las personas de este hogar han vivido...de lo que ganan en el trabajo? 1 = Sí y 2 = No.
 
-V2 - N (1) - ...de alguna jubilación o pensión? 1 = Sí y 2 = No. Permite analizar la situación de los endeudados.
+V2 - Evalúa si los integrantes del hogar reciben ingresos de un jubilación y pensión. 1 = Sí y 2 = No.
+
+ing_desemp - Permite ver si los integrantes del hogar perciben ingresos por desempleo. 1 = Sí y 2 = No
+
+ing_t_gub - Permite ver si los integrantes del hogar reciben ayuda estatal. 1 = Sí y 2 = No
+
+V5_3 - Permite ver si los integrantes del hogar reciben ayuda monetaria de organismos no gubernamentales. 1 = Sí y 2 = No NO APARECE EN EL DF
+
+ay_esp - Permite ver si los integrantes del hogar reciben ayuda en especie. 1 = Sí y 2 = No
+
+ing_pas - Permite ver si los integrantes del hogar perciben ingresos pasivos. 1 = Sí y 2 = No
+
+becas - Permite ver si los integrantes del hogar cobran becas. 1 = Sí y 2 = No
+
+V12 - Permite ver si los integrantes del hogar perciben cuotas alimentarias o alguna ayuda de personas que no conviven en el hogar.
+
+IX_Men10 - Cantidad de miembros del hogar menores de 10 años. NO APARECE EN EL DF
+
+jefas_h - Para diferenciar los hogares con jefas de hogar
 
 Para los modelos de variable binaria dependiente como logit y probit se requiere que los errores sean heterocedástico-robustos (Stock y Watson C11).
+
+```{r}
+library(dplyr)
+
+# Crear tabla con indicador de jefa mujer por hogar
+jefas_hogares <- dfi1 %>%
+  mutate(jefas_h = ifelse(CH03 == 1 & CH04 == 2, 1, 0)) %>%
+  group_by(CODUSU, NRO_HOGAR) %>%
+  summarise(jefas_h = max(jefas_h), .groups = "drop") %>%
+  mutate(CODUSU = as.character(CODUSU),
+         NRO_HOGAR = as.character(NRO_HOGAR))
+
+# Asegurar que las claves tengan mismo tipo en dfh1
+dfh1 <- dfh1 %>%
+  mutate(CODUSU = as.character(CODUSU),
+         NRO_HOGAR = as.character(NRO_HOGAR))
+
+# Join correcto: eliminar cualquier jefas_h previo y traer solo el nuevo
+dfh1 <- dfh1 %>%
+  select(-matches("^jefas_h$")) %>%   # borra si ya existía
+  left_join(jefas_hogares, by = c("CODUSU","NRO_HOGAR")) %>%
+  mutate(jefas_h = ifelse(is.na(jefas_h), 0, jefas_h))
+
+```
+
+```{r}
+summary(dfh1$jefas_h)
+```
+
+Analizo las variables independientes:
+
+```{r}
+summary(dfh1[, c("endeudado", "V1", "V2", "ing_desemp", "ing_t_gub",
+           "ay_esp", "ing_pas", "becas", "V12", "jefas_h")])
+summary (dfh1$ing_pas)
+```
