@@ -278,6 +278,10 @@ Dicha tendencia se potencia a lo largo de los déciles, rompiéndose esta estruc
 # esta como numero
 #lo transformo a factor
 
+dfh1$DECIFR <- as.factor(dfh1$DECIFR)
+
+levels(as.factor(dfh1$DECIFR))
+
 tabla_ingreso$DECIFR<-as.factor(tabla_ingreso$DECIFR)
 ```
 
@@ -375,6 +379,8 @@ V12 - Permite ver si los integrantes del hogar perciben cuotas alimentarias o al
 
 IX_Men10 - Cantidad de miembros del hogar menores de 10 años. NO APARECE EN EL DF
 
+DECIFR - decil de ingreso del hogar
+
 jefas_h - Para diferenciar los hogares con jefas de hogar
 
 Para los modelos de variable binaria dependiente como logit y probit se requiere que los errores sean heterocedástico-robustos (Stock y Watson C11).
@@ -410,7 +416,18 @@ summary(dfh1$jefas_h)
 Analizo las variables independientes:
 
 ```{r}
-summary(dfh1[, c("endeudado", "V1", "V2", "ing_desemp", "ing_t_gub",
+summary(dfh1[, c("V1", "V2", "ing_desemp", "ing_t_gub",
            "ay_esp", "ing_pas", "becas", "V12", "jefas_h")])
 summary (dfh1$ing_pas)
+```
+
+Modelo logit
+
+```{r}
+attach (dfh1)
+logit <- glm(endeudado ~ V1 + V2 + ing_desemp + ing_t_gub 
+             + ay_esp + ing_pas+ becas + V12 + DECIFR 
+             + jefas_h, family="binomial")
+
+summary(logit)
 ```
