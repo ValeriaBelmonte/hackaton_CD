@@ -1,0 +1,438 @@
+---
+title: "Untitled"
+format: html
+editor: visual
+---
+
+```{r}
+
+getwd(C:\Users\USUARIO\Desktop\ciencia de datos\HACKATON\hackaton_CD)
+```
+
+```{r}
+rm(list = ls())
+#setwd("~\CURSOS/data science/mundos_E/Hackaton/Hackaton")
+library (readxl)
+dfh <- read_excel("usu_hogar_T325.xlsx")
+dfi <- read_excel("usu_individual_T325.xlsx")
+
+```
+
+```{r}
+library(tidyverse)
+attach(dfh)
+dfh <- dfh %>%
+  mutate(ing_desemp = case_when( V3 == 1 | V4 == 1 ~ 1,   
+    V3 == 2 & V4 == 2 ~ 2)) #creo vble para juntar V3 y V4
+dfh <- dfh %>%
+  mutate(ing_t_gub = case_when( V5_01 == 1 | V5_02 == 1 ~ 1,   
+    V5_01 == 2 & V5_02 == 2 ~ 2)) #creo vble para juntar V5_1 y V5_2
+dfh <- dfh %>%
+  mutate(ay_esp = case_when( V6 == 1 | V7 == 1 ~ 1,   
+    V6 == 2 & V7 == 2 ~ 2)) #creo vble para juntar V6 y V7
+dfh <- dfh %>%
+  mutate(ing_pas = case_when(
+    V8 == 1 | V9 == 1 | V10 == 1 ~ 1,
+    V8 == 2 & V9 == 2 & V10 == 2 ~ 2,
+    TRUE ~ NA_real_)) #creo vble para juntar V8, V9 y V10
+dfh <- dfh %>%
+  mutate(becas = case_when( V11_01 == 1 | V11_02 == 1 ~ 1,   
+    V11_01 == 2 & V11_02 == 2 ~ 2)) #creo vble para juntar V11_1 y V11_2
+```
+
+Creo las siguientes vbles para simplificar:
+
+ing_desemp
+
+ing_t_gub
+
+ay_esp
+
+ing_pas
+
+becas
+
+```{r}
+library(tidyverse)
+
+dfi1 <- dfi %>% 
+  mutate(across(c( H15, CH03, CH04, PP04B_COD),
+                ~na_if(., 9)))
+summary(dfi1)
+
+dfh1 <- dfh %>% 
+  mutate(across(c(IPCF,	RDECIFR, V13, V14, V15, V16, V17, ing_desemp, ay_esp, ing_pas,becas),
+                ~na_if(., 9)))
+summary(dfh1)
+
+```
+
+“Los valores ‘No sabe/No responde’ fueron tratados como valores perdidos (NA) y, en caso de afectar múltiples variables del bloque de endeudamiento, se excluyeron para evitar sesgos en el índice.”
+
+## resumen de las variables de endeudamiento
+
+```{r}
+summary(dfh1[, c("V13","V14","V15","V16","V17")])
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+ poblacion_total <- dfh1 %>% 
+  select(V13:V17) %>% 
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "valor") %>% 
+  group_by(variable, valor) %>% 
+  summarise(n = n(), .groups = "drop") %>% 
+  group_by(variable) %>% 
+  mutate(porcentaje = round(100 * n / sum(n), 2))
+
+poblacion_total
+```
+
+Resumen integrado de estrategias de los hogares 🔹 Resultados clave
+
+V13 (uso de ahorros): 29.33%
+
+V14 (préstamos familiares/amigos): 13.54%
+
+V15 (préstamos bancarios): 13.82%
+
+V16 (compras en cuotas/fiado): 51.22%
+
+V17 (venta de bienes): 7.57%
+
+NA en todas: ≈ 0.03% → despreciable
+
+```{r}
+library(ggplot2)
+
+resumen <- data.frame(
+  variable = c("Uso de ahorros", 
+               "Préstamos familiares", 
+               "Préstamos bancarios", 
+               "Compras en cuotas", 
+               "Venta de bienes"),
+  porcentaje = c(29.33, 13.54, 13.82, 51.22, 7.57)
+)
+
+ggplot(resumen, aes(x = reorder(variable, porcentaje), y = porcentaje)) +
+  geom_col(fill = "#2C7FB8") +
+  geom_text(aes(label = paste0(porcentaje, "%")), 
+            hjust = -0.1, size = 4) +
+  coord_flip() +
+  labs(
+    title = "Estrategias financieras de los hogares",
+    subtitle = "EPH - Uso de mecanismos de financiamiento",
+    x = "",
+    y = "Porcentaje de hogares"
+  ) +
+  ylim(0, 80) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text.y = element_text(size = 11)
+  )
+```
+
+Ahora, filtro la base dfi1 para ver estas variables en los hogares cuya jefa de hogar es mujer:
+
+Para ello, utilizo las variables que vinculan ambas bases (CODUSU, NRO_HOGAR). Lo vinculo con el comando inner_join. Este comando permite unificar dos data frames mediante vbles compartidas pero elimina las filas no coincidentes (PARA TENER EN CUENTA)
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+m_jefas_hogar <- dfi1 %>%
+  filter(CH03 == 1, CH04 == 2) %>%
+  select(CODUSU, NRO_HOGAR)
+
+dfh1_mujeres <- dfh1 %>%
+  inner_join(m_jefas_hogar, by = c("CODUSU", "NRO_HOGAR"))
+
+# Distribución de mujeres endeudadas
+jefas_claves <- dfh1_mujeres %>%
+  select(V13:V17) %>%
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "valor") %>%
+  group_by(variable, valor) %>%
+  summarise(n_mujeres = n(), .groups = "drop")
+
+# Comparación con el total de endeudados
+comparacion <- jefas_claves %>%
+  left_join(poblacion_total, by = c("variable", "valor")) %>%
+  group_by(variable, valor) %>%
+  mutate(porcentaje_mujeres = round(100 * n_mujeres / n, 2))
+
+comparacion
+```
+
+Cuando observamos nuevamente estas vbles, vemos que los porcentajes de endeudamiento de los hogares de las jefas de hogar, con respecto al total de endeudados, son:
+
+V13 (uso de ahorros): 47,23%
+
+V14 (préstamos familiares/amigos): 52,63%
+
+V15 (préstamos bancarios): 48,49%
+
+V16 (compras en cuotas/fiado): 47,07%
+
+V17 (venta de bienes): 50,12%
+
+En esto se refleja el mayor peso relativo que tiene el endeudamiento informal con familiares y amigos.
+
+```{r}
+library(ggplot2)
+
+resumen <- data.frame(
+  variable = c("Uso de ahorros", 
+               "Préstamos familiares", 
+               "Préstamos bancarios", 
+               "Compras en cuotas", 
+               "Venta de bienes"),
+  porcentaje = c(47.23, 52.63, 48.49, 47.07, 50.12)
+)
+
+ggplot(resumen, aes(x = reorder(variable, porcentaje), y = porcentaje)) +
+  geom_col(fill = "#2C7FB8") +
+  geom_text(aes(label = paste0(porcentaje, "%")), 
+            hjust = -0.1, size = 4) +
+  coord_flip() +
+  labs(
+    title = "Estrategias financieras de los hogares",
+    subtitle = "EPH - proporción: hogares de jefas de hogar - total de endeudados",
+    x = "",
+    y = "Porcentaje de hogares"
+  ) +
+  ylim(0, 80) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(hjust = 0),
+    axis.text.y = element_text(size = 11)
+  )
+```
+
+Es mayor su participación en los mecanismos informales con respecto a la de los formales.
+
+Luego, analizamos el comportamiento de los hogares según décil de ingreso:\
+
+```{r}
+# vemos que tiene DECIFR
+
+summary(dfh1[,"DECIFR"])
+```
+
+```{r}
+#recodifico y
+#elimino las uniades de análisis que no respondieron
+library(dplyr)
+
+dfh2 <- dfh1 %>% 
+  mutate(
+    across(c(V13, V14, V15, V16, V17),
+           ~case_when(
+             . == 1 ~ 1,
+             . == 2 ~ 0,
+             TRUE ~ NA_real_
+           ))
+  ) %>% 
+  filter(DECIFR %in% 1:10)
+
+```
+
+```{r}
+#controlo que l codificacón este bien
+table(dfh2$V13, useNA = "ifany")
+table(dfh2$V14, useNA = "ifany")
+table(dfh2$V15, useNA = "ifany")
+table(dfh2$V16, useNA = "ifany")
+table(dfh2$V17, useNA = "ifany")
+```
+
+```{r}
+tabla_ingreso <- dfh2 %>% 
+  select(DECIFR, V13, V14, V15, V16, V17) %>% 
+  pivot_longer(cols = c(V13, V14, V15, V16, V17),
+               names_to = "variable",
+               values_to = "si") %>% 
+  filter(!is.na(DECIFR), !is.na(si)) %>% 
+  group_by(DECIFR, variable) %>% 
+  summarise(porcentaje = mean(si, na.rm = TRUE) * 100, .groups = "drop") %>% 
+  mutate(
+    variable = recode(variable,
+      V13 = "Uso de ahorros",
+      V14 = "Préstamos familiares",
+      V15 = "Préstamos bancarios",
+      V16 = "Compras en cuotas",
+      V17 = "Venta de bienes"
+    )
+  )
+tabla_ingreso
+```
+
+Los hogares de menores ingresos (primer decil) utilizan en mayor medida las compras en cuotas para financiarse (31,10%) con respecto a las demás estrategias analizadas. Detrás de ellos vienen el uso de ahorros (25,93%) y los préstamos familiares (19,24%).
+
+Dicha tendencia se potencia a lo largo de los déciles, rompiéndose esta estructura en el sexto decil. Donde, el préstamo bancario reemplaza (como tercera fuerza) a los préstamos familiares. Este cambio de tendencia se potencia a partir del sexto decil.
+
+```{r}
+#str(tabla_ingreso$DECIFR)
+# esta como numero
+#lo transformo a factor
+
+dfh1$DECIFR <- as.factor(dfh1$DECIFR)
+
+levels(as.factor(dfh1$DECIFR))
+
+tabla_ingreso$DECIFR<-as.factor(tabla_ingreso$DECIFR)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(tabla_ingreso, 
+       aes(x = DECIFR, y = porcentaje, 
+           color = variable, group = variable)) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 2) +
+  scale_x_discrete(labels = paste0("D", 1:10))+
+  scale_y_continuous(breaks = seq(0, 100, by = 10))+
+  labs(
+    title = "Estrategias económicas de los hogares según nivel de ingreso",
+    subtitle = "Porcentaje de hogares por decil de ingreso",
+    x = "Decil de ingreso (1 = más bajo, 10 = más alto)",
+    y = "Porcentaje de hogares",
+    color = ""
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold"),
+    legend.position = "bottom")+
+  guides(color = guide_legend(nrow = 2, byrow = TRUE))
+```
+
+#auxiliares
+
+## Caracterización sociodemográfica de los encuestados
+
+## Trabajan y tienen jubilación
+
+Cuantas personas viven cobran jubilación, varaible V2
+
+```{r}
+table(dfh1$V2)
+```
+
+de Ambas
+
+```{r}
+table (dfh1$V1,dfh1$V2)
+```
+
+Asociación entre las variables
+
+Hay que crear un data frame eliminando los datos que tienen 9 (que son 4) para no tener cudad en las pruebas
+
+```{r}
+t_y_J<-dfh %>% select(V1, V2) %>% filter(V1!=9&V2!=9)
+```
+
+```{r}
+table (t_y_J$V1,t_y_J$V2) 
+chisq.test(table (t_y_J$V1,t_y_J$V2)) 
+round(100*prop.table(table (t_y_J$V1,t_y_J$V2)),1) 
+residuals(chisq.test(table (t_y_J$V1,t_y_J$V2)))
+```
+
+Creo la variable dependiente para el logit:
+
+```{r}
+dfh1 <- dfh1 %>%
+  mutate(endeudado = case_when(
+    rowSums(across(c(V14, V15, V16), ~ . == 1)) > 0 ~ 1,
+    rowSums(across(c(V14, V15, V16), ~ . == 2)) == 3 ~ 0,
+    TRUE ~ NA_real_
+  ))
+
+summary(dfh1[,"endeudado"])
+```
+
+Podemos hacer una primera aproximación al modelo LOGIT. Para ello, usaremos como variable dependiente la probabilidad de que un hogar tenga alguna deuda (de al menos 1 de sus miembros).
+
+En base a los análisis anteriores podríamos considerar relevantes, para una primera aproximación al modelo, a las variables independientes:
+
+V1 - ¿En los últimos tres meses, las personas de este hogar han vivido...de lo que ganan en el trabajo? 1 = Sí y 2 = No.
+
+V2 - Evalúa si los integrantes del hogar reciben ingresos de un jubilación y pensión. 1 = Sí y 2 = No.
+
+ing_desemp - Permite ver si los integrantes del hogar perciben ingresos por desempleo. 1 = Sí y 2 = No
+
+ing_t_gub - Permite ver si los integrantes del hogar reciben ayuda estatal. 1 = Sí y 2 = No
+
+V5_3 - Permite ver si los integrantes del hogar reciben ayuda monetaria de organismos no gubernamentales. 1 = Sí y 2 = No NO APARECE EN EL DF
+
+ay_esp - Permite ver si los integrantes del hogar reciben ayuda en especie. 1 = Sí y 2 = No
+
+ing_pas - Permite ver si los integrantes del hogar perciben ingresos pasivos. 1 = Sí y 2 = No
+
+becas - Permite ver si los integrantes del hogar cobran becas. 1 = Sí y 2 = No
+
+V12 - Permite ver si los integrantes del hogar perciben cuotas alimentarias o alguna ayuda de personas que no conviven en el hogar.
+
+IX_Men10 - Cantidad de miembros del hogar menores de 10 años. NO APARECE EN EL DF
+
+DECIFR - decil de ingreso del hogar
+
+jefas_h - Para diferenciar los hogares con jefas de hogar
+
+Para los modelos de variable binaria dependiente como logit y probit se requiere que los errores sean heterocedástico-robustos (Stock y Watson C11).
+
+```{r}
+library(dplyr)
+
+# Crear tabla con indicador de jefa mujer por hogar
+jefas_hogares <- dfi1 %>%
+  mutate(jefas_h = ifelse(CH03 == 1 & CH04 == 2, 1, 0)) %>%
+  group_by(CODUSU, NRO_HOGAR) %>%
+  summarise(jefas_h = max(jefas_h), .groups = "drop") %>%
+  mutate(CODUSU = as.character(CODUSU),
+         NRO_HOGAR = as.character(NRO_HOGAR))
+
+# Asegurar que las claves tengan mismo tipo en dfh1
+dfh1 <- dfh1 %>%
+  mutate(CODUSU = as.character(CODUSU),
+         NRO_HOGAR = as.character(NRO_HOGAR))
+
+# Join correcto: eliminar cualquier jefas_h previo y traer solo el nuevo
+dfh1 <- dfh1 %>%
+  select(-matches("^jefas_h$")) %>%   # borra si ya existía
+  left_join(jefas_hogares, by = c("CODUSU","NRO_HOGAR")) %>%
+  mutate(jefas_h = ifelse(is.na(jefas_h), 0, jefas_h))
+
+```
+
+```{r}
+summary(dfh1$jefas_h)
+```
+
+Analizo las variables independientes:
+
+```{r}
+summary(dfh1[, c("V1", "V2", "ing_desemp", "ing_t_gub",
+           "ay_esp", "ing_pas", "becas", "V12", "jefas_h")])
+summary (dfh1$ing_pas)
+```
+
+Modelo logit
+
+```{r}
+attach (dfh1)
+logit <- glm(endeudado ~ V1 + V2 + ing_desemp + ing_t_gub 
+             + ay_esp + ing_pas+ becas + V12 + DECIFR 
+             + jefas_h, family="binomial")
+
+summary(logit)
+```
