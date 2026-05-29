@@ -437,10 +437,15 @@ summary (dfh1$ing_pas)
 Modelo logit
 
 ```{r}
+library(abind)
 attach (dfh1)
-logit <- glm(endeudado ~ V1 + V2 + ing_desemp + ing_t_gub 
-             + ay_esp + ing_pas+ becas + V12 + DECIFR 
-             + jefas_h, family="binomial")
+# Filtrar el data frame original
+df_filtrado <- dfh1 %>% 
+  filter(RDECIFR %in% 1:10)
 
+attach(df_filtrado)
+# Ajustar el modelo logit con el data frame filtrado
+logit <- glm(endeudado ~ V1 + V2 + ing_desemp + ing_t_gub +
+             ay_esp + ing_pas + becas + V12 + relevel(DECIFR, ref=6) + jefas_h)
 summary(logit)
 ```
