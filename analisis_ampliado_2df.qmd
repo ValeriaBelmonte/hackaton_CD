@@ -108,7 +108,7 @@ resumen <- data.frame(
   variable = c("Uso de ahorros", 
                "Préstamos familiares", 
                "Préstamos bancarios", 
-               "Compras en cuotas", 
+               "Compras en cuotas/fiado", 
                "Venta de bienes"),
   porcentaje = c(29.33, 13.54, 13.82, 51.22, 7.57)
 )
@@ -137,6 +137,11 @@ Ahora, filtro la base dfi1 para ver estas variables en los hogares cuya jefa de 
 Para ello, utilizo las variables que vinculan ambas bases (CODUSU, NRO_HOGAR). Lo vinculo con el comando inner_join. Este comando permite unificar dos data frames mediante vbles compartidas pero elimina las filas no coincidentes (PARA TENER EN CUENTA)
 
 ```{r}
+summary(dfi1$CH04)
+
+```
+
+```{r}
 library(dplyr)
 library(tidyr)
 
@@ -159,25 +164,35 @@ jefas_claves <- dfh1_mujeres %>%
 # Comparación con el total de endeudados
 comparacion <- jefas_claves %>%
   left_join(poblacion_total, by = c("variable", "valor")) %>%
-  group_by(variable, valor) %>%
-  mutate(porcentaje_mujeres = round(100 * n_mujeres / n, 2))
+  group_by(variable) %>%
+  mutate(porcentaje_mujeres = round(100 * n_mujeres / sum(n_mujeres), 2))
 
 comparacion
+
+poblacion_total <- dfh1 %>% 
+  select(V13:V17) %>% 
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "valor") %>% 
+  group_by(variable, valor) %>% 
+  summarise(n = n(), .groups = "drop") %>% 
+  group_by(variable) %>% 
+  mutate(porcentaje = round(100 * n / sum(n), 2))
 ```
 
-Cuando observamos nuevamente estas vbles, vemos que los porcentajes de endeudamiento de los hogares de las jefas de hogar, con respecto al total de endeudados, son:
+Cuando observamos nuevamente estas vbles, vemos que los porcentajes de endeudamiento de los hogares con jefas de hogar son:
 
-V13 (uso de ahorros): 47,23%
+V13 (uso de ahorros): 28,51%
 
-V14 (préstamos familiares/amigos): 52,63%
+V14 (préstamos familiares/amigos): 14,66%
 
-V15 (préstamos bancarios): 48,49%
+V15 (préstamos bancarios): 13,79%
 
-V16 (compras en cuotas/fiado): 47,07%
+V16 (compras en cuotas/fiado): 49,62%
 
-V17 (venta de bienes): 50,12%
+V17 (venta de bienes): 7,81%
 
-En esto se refleja el mayor peso relativo que tiene el endeudamiento informal con familiares y amigos.
+En esto se refleja la misma tendencia que en el total de los hogares y un leve aumento en el peso relativo que tiene el endeudamiento informal con respecto a las vías formales.
 
 ```{r}
 library(ggplot2)
@@ -186,19 +201,19 @@ resumen <- data.frame(
   variable = c("Uso de ahorros", 
                "Préstamos familiares", 
                "Préstamos bancarios", 
-               "Compras en cuotas", 
+               "Compras en cuotas/fiado", 
                "Venta de bienes"),
-  porcentaje = c(47.23, 52.63, 48.49, 47.07, 50.12)
+  porcentaje = c(28.51, 14.66, 13.79, 49.62, 7.81)
 )
 
 ggplot(resumen, aes(x = reorder(variable, porcentaje), y = porcentaje)) +
-  geom_col(fill = "#2C7FB8") +
+  geom_col(fill = "#DA70D6") +
   geom_text(aes(label = paste0(porcentaje, "%")), 
             hjust = -0.1, size = 4) +
   coord_flip() +
   labs(
     title = "Estrategias financieras de los hogares",
-    subtitle = "EPH - proporción: hogares de jefas de hogar - total de endeudados",
+    subtitle = "EPH - financiamiento de hogares con jefas de hogar",
     x = "",
     y = "Porcentaje de hogares"
   ) +
@@ -210,8 +225,6 @@ ggplot(resumen, aes(x = reorder(variable, porcentaje), y = porcentaje)) +
     axis.text.y = element_text(size = 11)
   )
 ```
-
-Es mayor su participación en los mecanismos informales con respecto a la de los formales.
 
 Luego, analizamos el comportamiento de los hogares según décil de ingreso:\
 
