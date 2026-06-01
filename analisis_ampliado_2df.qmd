@@ -287,18 +287,6 @@ Los hogares de menores ingresos (primer decil) utilizan en mayor medida las comp
 Dicha tendencia se potencia a lo largo de los déciles, rompiéndose esta estructura en el sexto decil. Donde, el préstamo bancario reemplaza (como tercera fuerza) a los préstamos familiares. Este cambio de tendencia se potencia a partir del sexto decil.
 
 ```{r}
-#str(tabla_ingreso$DECIFR)
-# esta como numero
-#lo transformo a factor
-
-dfh1$DECIFR <- as.factor(dfh1$DECIFR)
-
-levels(as.factor(dfh1$DECIFR))
-
-tabla_ingreso$DECIFR<-as.factor(tabla_ingreso$DECIFR)
-```
-
-```{r}
 library(ggplot2)
 
 ggplot(tabla_ingreso, 
@@ -440,12 +428,245 @@ Modelo logit
 library(abind)
 attach (dfh1)
 # Filtrar el data frame original
-df_filtrado <- dfh1 %>% 
-  filter(RDECIFR %in% 1:10)
+dfh1$DECIFR <- factor(dfh1$DECIFR, levels = 1:10)
+summary(dfh1$DECIFR)
 
-attach(df_filtrado)
+attach (dfh1)
 # Ajustar el modelo logit con el data frame filtrado
 logit <- glm(endeudado ~ V1 + V2 + ing_desemp + ing_t_gub +
-             ay_esp + ing_pas + becas + V12 + relevel(DECIFR, ref=6) + jefas_h)
+             ay_esp + ing_pas + becas + V12 + DECIFR + jefas_h, family="binomial")
 summary(logit)
 ```
+
+Ahora testeamos el modelo:
+
+```{r}
+anova(logit, test = "Chisq") #para modelos de max verosimilitud
+#parte de un modelo sin vbles y compara a medida que agrega vbles
+```
+
+El anova devuelve que solo en las variables V1, V2, ing_t_gub, ay_esp, DECIFR y jefas_h hay información suficiente para rechazar la H0) Bi=0.
+
+```{r}
+library(lmtest)
+lrtest(logit) #compara un modelo sin vbles y uno con vbles
+#RH0) QUE DICE QUE TODAS LAS VBLES TIENEN COEF CERO, MODELO GLOBALMENTE SGNIFICATIVO
+```
+
+```{r}
+# Pseudo-R2:
+install.packages("DescTools")
+library(DescTools)
+#R2 MCFADDEN:
+PseudoR2(logit)
+```
+
+Tiene un pseudo R2 bajo. McFadden = 0.036.
+
+```{r}
+#Multicolinealidad
+library(car)              # VIF
+vif(logit)       # Valores >5 preocupan
+```
+
+**Prueba de Hosmer-Lemeshow**: Evalúa si las probabilidades predichas se ajustan a las observadas
+
+```{r}
+library(ResourceSelection) # Hosmer-Lemeshow
+
+# Guardar el dataset usado en el modelo
+df_model <- model.frame(logit)
+
+# Predicciones del modelo
+pred <- fitted(logit)
+
+#Hosmer-Lemeshow
+hoslem.test(df_model$endeudado, pred, g=10)
+```
+
+Pv\>0.05, entonces no tengo información suficiente para rechazar la H0) de que las variables se ajustan bien al modelo. No hay diferencias significativas entre las probabilidades predichas y las observadas.
+
+**Curva ROC y AUC**: Mide capacidad de discriminación del modelo.
+
+```{r}
+# 5. ROC y AUC
+library(pROC)             # ROC y AUC
+
+# Variable dependiente (ya filtrada igual que en el modelo)
+y <- df_model$endeudado
+
+# Ahora sí, ROC y AUC
+library(pROC)
+roc_obj <- roc(y, pred)
+plot(roc_obj, main="Curva ROC")
+auc(roc_obj)
+```
+
+**Matriz de confusión**: Evalúa sensibilidad (verdaderos positivos) y especificidad (verdaderos negativos).
+
+```{r}
+library(caret)            # Matriz de confusión
+#Matriz de confusión
+# Definir umbral de clasificación (ej. 0.5)
+pred_clas <- ifelse(pred > 0.5, 1, 0)
+confusionMatrix(as.factor(pred_clas), as.factor(df_model$endeudado), positive="1")
+```
+
+Accuracy = 0.62, Sensivity = 0.85
+
+**Validación cruzada o hold-out**: Divide la muestra en entrenamiento y prueba para verificar generalización.
+
+```{r}
+#Odds Ratios
+exp(coef(logit)) 
+```
+
+Intento con un modelo distinto para ver si cambia la significatividad general de las variables.
+
+```{r}
+attach (dfh1)
+# Ajustar el modelo logit con el data frame filtrado
+logit_2 <- glm(endeudado ~ V1 + V2 + ing_desemp + ing_t_gub +
+             ay_esp  + V12 + DECIFR + jefas_h + ing_pas, family="binomial")
+summary(logit_2)
+```
+
+Ahora testeamos el modelo y luego lo comparamos con el primero:
+
+```{r}
+anova(logit_2, test = "Chisq") #para modelos de max verosimilitud
+#parte de un modelo sin vbles y compara a medida que agrega vbles
+```
+
+ing_desemp y V12 siguen sin ser significativas en este nuevo modelo.
+
+```{r}
+library(lmtest)
+lrtest(logit, logit_2) #compara un modelo sin vbles y uno con vbles
+#RH0) QUE DICE QUE TODAS LAS VBLES TIENEN COEF CERO, MODELO GLOBALMENTE SGNIFICATIVO
+```
+
+Dado que no se tiene información suficiente para rechazar H0) que plantea que no hay un cambio significativo entre el modelo reducido y el no restringido, podemos afirmar que la incorporación de becas no logra aportar información relevante para explicar a la variable dependiente (endeudado). Por, ello podemos eliminarla del modelo.
+
+```{r}
+attach (dfh1)
+# Ajustar el modelo logit con el data frame filtrado
+logit_3 <- glm(endeudado ~ V1 + V2 + ing_desemp + ing_t_gub +
+             ay_esp  + V12 + DECIFR + jefas_h + ing_pas, family="binomial")
+summary(logit_3)
+```
+
+```{r}
+anova(logit_3, test = "Chisq") #para modelos de max verosimilitud
+#parte de un modelo sin vbles y compara a medida que agrega vbles
+```
+
+ing_desemp y V12 permanecen no significativos
+
+```{r}
+library(lmtest)
+lrtest(logit, logit_3) #compara un modelo sin vbles y uno con vbles
+#RH0) QUE DICE QUE TODAS LAS VBLES TIENEN COEF CERO, MODELO GLOBALMENTE SGNIFICATIVO
+```
+
+Dado que se tiene información suficiente para rechazar H0) que plantea que no hay un cambio significativo entre el modelo reducido y el no restringido, podemos afirmar que la incorporación de ing_pas logra aportar información relevante para explicar a la variable dependiente (endeudado). Por, ello podemos mantenerla en el modelo.
+
+```{r}
+attach (dfh1)
+# Ajustar el modelo logit con el data frame filtrado
+logit_4 <- glm(endeudado ~ V1 + V2 + ing_desemp + ing_t_gub +
+             ay_esp + ing_pas + DECIFR + jefas_h, family="binomial")
+summary(logit_4)
+```
+
+```{r}
+anova(logit_4, test = "Chisq") #para modelos de max verosimilitud
+#parte de un modelo sin vbles y compara a medida que agrega vbles
+```
+
+```{r}
+library(lmtest)
+lrtest(logit, logit_4) #compara un modelo sin vbles y uno con vbles
+#RH0) QUE DICE QUE TODAS LAS VBLES TIENEN COEF CERO, MODELO GLOBALMENTE SGNIFICATIVO
+```
+
+Dado que no se tiene información suficiente para rechazar H0) que plantea que no hay un cambio significativo entre el modelo reducido y el no restringido, podemos afirmar que la incorporación de V12 no logra aportar información relevante para explicar a la variable dependiente (endeudado). Por, ello podemos eliminarla del modelo.
+
+```{r}
+attach (dfh1)
+# Ajustar el modelo logit con el data frame filtrado
+logit_5 <- glm(endeudado ~ V1 + V2 + ing_t_gub +
+             ay_esp + DECIFR + jefas_h + ing_pas, family="binomial")
+summary(logit_5)
+```
+
+```{r}
+anova(logit_5, test = "Chisq") #para modelos de max verosimilitud
+#parte de un modelo sin vbles y compara a medida que agrega vbles
+```
+
+```{r}
+library(lmtest)
+lrtest(logit, logit_5) #compara un modelo sin vbles y uno con vbles
+#RH0) QUE DICE QUE TODAS LAS VBLES TIENEN COEF CERO, MODELO GLOBALMENTE SGNIFICATIVO
+```
+
+Dado que no se tiene información suficiente para rechazar H0) que plantea que no hay un cambio significativo entre el modelo reducido y el no restringido, podemos afirmar que la incorporación de ing_desemp no logra aportar información relevante para explicar a la variable dependiente (endeudado). Por, ello podemos eliminarla del modelo. \
+
+```{r}
+# Pseudo-R2:
+library(DescTools)
+#R2 MCFADDEN:
+PseudoR2(logit_5)
+```
+
+Tiene un pseudo R2 más bajo que el modelo original. McFadden = 0.035 vs 0.036.
+
+```{r}
+#Multicolinealidad
+library(car)              # VIF
+vif(logit_5)       # Valores >5 preocupan
+```
+
+**Prueba de Hosmer-Lemeshow**: Evalúa si las probabilidades predichas se ajustan a las observadas
+
+```{r}
+library(ResourceSelection) # Hosmer-Lemeshow
+
+# Guardar el dataset usado en el modelo
+df_model_5 <- model.frame(logit_5)
+
+# Predicciones del modelo
+pred_5 <- fitted(logit_5)
+
+#Hosmer-Lemeshow
+hoslem.test(df_model_5$endeudado, pred_5, g=10)
+```
+
+Pv\>0.05, entonces no tengo información suficiente para rechazar la H0) de que las variables se ajustan bien al modelo. No hay diferencias significativas entre las probabilidades predichas y las observadas.
+
+**Curva ROC y AUC**: Mide capacidad de discriminación del modelo.
+
+```{r}
+# 5. ROC y AUC
+library(pROC)             # ROC y AUC
+
+# Variable dependiente (ya filtrada igual que en el modelo)
+y5 <- df_model_5$endeudado
+
+roc_obj5 <- roc(y5, pred_5)
+plot(roc_obj5, main="Curva ROC")
+auc(roc_obj5)
+```
+
+**Matriz de confusión**: Evalúa sensibilidad (verdaderos positivos) y especificidad (verdaderos negativos).
+
+```{r}
+library(caret)            # Matriz de confusión
+#Matriz de confusión
+# Definir umbral de clasificación (ej. 0.5)
+pred_clas5 <- ifelse(pred_5 > 0.5, 1, 0)
+confusionMatrix(as.factor(pred_clas5), as.factor(df_model_5$endeudado), positive="1")
+```
+
+Accuracy = 0.62, Sensivity = 0.85
