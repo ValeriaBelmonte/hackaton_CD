@@ -1,0 +1,1119 @@
+---
+title: "salida"
+format: docx
+editor: visual
+execute:
+  echo: false
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+
+rm(list = ls())
+#setwd("~/CURSOS/data science/mundos_E/Hackaton/Hackaton")
+library (readxl)
+dfh <- read_excel("datos/usu_hogar_T325.xlsx")
+ 
+dfi <- read_excel("datos/usu_individual_T325.xlsx")
+
+```
+
+### Reacomodo la base de datos
+
+-   junto variables com esta explicado en las variables a considerar
+-   recodifico 1= si 0= no, uso esta codifiación pues la regresión logit dejará de referencia al no y los ODD RATIO espara expresados en logis de si sobre no.
+
+```{r message=FALSE}
+library(tidyverse)
+attach(dfh)
+dfh <- dfh %>%
+  mutate(ing_desemp = case_when( V3 == 1 | V4 == 1 ~ 1,   
+    V3 == 2 & V4 == 2 ~ 0)) #creo vble para juntar V3 y V4
+dfh <- dfh %>%
+  mutate(ing_t_gub = case_when( V5_01 == 1 | V5_02 == 1 ~ 1,   
+    V5_01 == 2 & V5_02 == 2 ~ 0)) #creo vble para juntar V5_1 y V5_2
+dfh <- dfh %>%
+  mutate(ay_esp = case_when( V6 == 1 | V7 == 1 ~ 1,   
+    V6 == 2 & V7 == 2 ~ 0)) #creo vble para juntar V6 y V7
+dfh <- dfh %>%
+  mutate(ing_pas = case_when( V8 == 1 | V9 == 1 | V10 == 1 ~ 1,   
+    V8 == 2 & V9 == 2 & V10 == 0 ~ 0)) #creo vble para juntar V8, V9 y V10
+dfh <- dfh %>%
+  mutate(becas = case_when( V11_01 == 1 | V11_02 == 1 ~ 1,   
+    V11_01 == 2 & V11_02 == 2 ~ 0)) #creo vble para juntar V11_1 y V11_2
+dfh <- dfh %>% 
+  mutate(across(c(V1, V2, V12),
+           ~ recode(., `1` = 1, `2` = 0))
+  )
+```
+
+```{r}
+dim(dfh)
+```
+
+**observacion** como el objetivo es trabajar con el endeudamiento de las familias trabajo con las variables:
+
+V13: gastar lo ahorrado\
+V14: pedir prestamos familiares o a migos\
+V15: pedir prestamos a banco o financieras V16:comprar en cuotas V17: vender cosas
+
+Cuantas personas viven de lo que ganan del trabajo, variabe V1\
+Codificación 1= Si; 2 = No, 9 = N/R
+
+Debo asegurar que no haya 9 en esas variables, pero sin perder los 15860 datos por lo tanto codifico con NA a los 9 de esas varible s
+
+
+“Los valores ‘No sabe/No responde’ fueron tratados como valores perdidos (NA) y, en caso de afectar múltiples variables del bloque de endeudamiento, se excluyeron para evitar sesgos en el índice.”
+
+```{r}
+#elimno datos que tienen  9 (datos vacios)
+library(tidyverse)
+
+dfi1 <- dfi %>% 
+  mutate(across(c( H15, CH03, CH04, PP04B_COD),
+                ~na_if(., 9)))
+#summary(dfi1)
+
+dfh1 <- dfh %>% 
+  mutate(across(c( IPCF,	RDECIFR, V13, V14, V15, V16, V17, ing_desemp, ay_esp, ing_pas,becas),     
+                ~na_if(., 9)),
+         across(c(V13, V14, V15, V16, V17, ing_desemp, ay_esp, ing_pas, becas),
+           ~ recode(., `1` = 1, `2` = 0))
+  )
+```
+```{r}
+nrow(dfh)
+nrow(dfh1)
+nrow(dfi)
+nrow(dfi1)
+```
+###    Crear tabla con indicador de jefa mujer por hogar
+```{r}
+library(dplyr)
+
+# Crear tabla con indicador de jefa mujer por hogar
+jefas_hogares <- dfi1 %>%
+  mutate(jefas_h = ifelse(CH03 == 1 & CH04 == 2, 1, 0)) %>%
+  group_by(CODUSU, NRO_HOGAR) %>%
+  summarise(jefas_h = max(jefas_h), .groups = "drop") %>%
+  mutate(CODUSU = as.character(CODUSU),
+         NRO_HOGAR = as.character(NRO_HOGAR))
+
+# Asegurar que las claves tengan mismo tipo en dfh1
+dfh1 <- dfh1 %>%
+  mutate(CODUSU = as.character(CODUSU),
+         NRO_HOGAR = as.character(NRO_HOGAR))
+
+# Join correcto: eliminar cualquier jefas_h previo y traer solo el nuevo
+dfh1 <- dfh1 %>%
+  select(-matches("^jefas_h$")) %>%   # borra si ya existía
+  left_join(jefas_hogares, by = c("CODUSU","NRO_HOGAR")) %>%
+  mutate(jefas_h = ifelse(is.na(jefas_h), 0, jefas_h))
+
+```
+
+```{r}
+dfh1$jefas_h<-as.factor(dfh1$jefas_h)
+```
+```{r}
+nrow(dfh1)
+```
+
+```{r}
+summary(dfh1$jefas_h)
+```
+Dato importante el 47,81%  de los hogares tiene jefa de hogar
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+puntos_jefa_hogar<- data.frame(
+  id = 1:100
+) %>%
+  mutate(
+    fila = ceiling(id / 10),
+    columna = id - (fila - 1) * 10,
+    grupo = ifelse(id <= 48, "Destacado", "Resto")
+  )
+
+g_puntos_jefa_hogar<-ggplot(puntos_jefa_hogar,
+       aes(x = columna,
+           y = -fila,
+           color = grupo)) +
+  geom_point(size = 8) +
+  scale_color_manual(values = c(
+    "Destacado" = "#F28E2B",
+    "Resto" = "#00A6E8"
+  )) +
+  coord_equal() +
+  theme_void() +
+  theme(
+    legend.position = "none"
+  )
+g_puntos_jefa_hogar
+```
+
+```{r}
+ggsave( "graficos/puntos jefa .png",plot=g_puntos_jefa_hogar,width = 6,
+  height = 6, bg="white")
+
+```
+
+
+## Caracterización de los hogares encuestados 
+
+
+### Reciben dinero por su trabajo  y jubililación
+```{r}
+
+table(dfh1$V1,dfh1$V2)
+100*prop.table(table(dfh1$V1,dfh1$V2))
+```
+55 % poer su trabajo 
+18% por su trabajo
+24% reciben por trabajo y jubuiliació y pensión
+3$ no recibe ni  por trabajo ni  jubilación
+
+
+## grafico fuente de ingresos 
+
+```{r}
+
+tabla_ingresos <- tibble(
+  categoria = c(
+    "Solo por trabajo",
+    "Solo por jubilación o pensión",
+    "Por trabajo y jubilación/pensión",
+    "No recibe ninguno"
+  ),
+  porcentaje = c(55, 18, 24, 3)
+)
+tabla_ingresos$color <- ifelse(
+  tabla_ingresos$categoria == "Solo por trabajo",
+  "Destacado",
+  "Resto"
+)
+
+
+####
+g_fuente_de_ingresos<-ggplot(tabla_ingresos,
+       aes(x = reorder(categoria, porcentaje),
+           y = porcentaje,
+           fill = color)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = paste0(porcentaje, "%")),
+            hjust = -0.15,
+            size = 3) +
+  coord_flip() +
+  scale_fill_manual(values = c(
+    "Destacado" = "#F28E2B",  # naranja
+    "Resto" = "grey70"
+  )) +
+  labs(
+    title = "",
+    x = NULL,
+    y = NULL
+  ) +
+  expand_limits(y = 60) +
+  theme_minimal(base_size = 10) +
+  labs(title="Fuente de ingresos del hogar")+
+  theme(
+    legend.position = "none",
+    panel.grid = element_blank(),   # elimina todas las líneas de fondo
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_blank(),
+    axis.ticks = element_blank()
+  )
+g_fuente_de_ingresos
+```
+
+```{r}
+ggsave( "graficos/fuente_ingreso.png",plot=g_fuente_de_ingresos,width = 8,
+  height = 6, bg="white")
+
+```
+##  Hogares por DECIFIR
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Tabla de porcentajes
+tabla_deciles <- dfh1 %>%
+  filter(!is.na(DECIFR),DECIFR != 12) %>%   # opcional: excluir el decil 0
+  count(DECIFR) %>%
+  mutate(
+    porcentaje = 100 * n / sum(n)
+  )
+
+tabla_deciles
+
+tabla_deciles$color <- ifelse(
+  tabla_deciles$DECIFR == 0,
+  "Destacado",
+  "Resto"
+)
+```
+
+
+```{r}
+g_deciles <- ggplot(tabla_deciles,
+                    aes(x = factor(DECIFR),
+                        y = porcentaje,
+                        fill = color)) +
+  geom_col(width = 0.85) +
+  coord_flip(clip = "off") +
+  geom_text(aes(label = paste0(round(porcentaje, 0), "%")),
+            hjust = -0.15,
+            size = 3) +
+  scale_fill_manual(values = c(
+    "Destacado" = "grey70",
+    "Resto" = "#4DA3D9"
+  )) +
+  scale_y_continuous(
+    limits = c(0, max(tabla_deciles$porcentaje) + 3),
+    expand = expansion(mult = c(0, 0.05))
+  ) +
+  labs(
+    title = "Hogares por decil de ingreso",
+    x = NULL,
+    y = NULL,
+    caption = "Nota: decil 0 = hogares sin ingresos"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(
+    legend.position = "none",
+    panel.grid = element_blank(),
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    plot.caption = element_text(size = 8, hjust = 1),
+    plot.margin = margin(5, 35, 15, 5)
+  )
+
+g_deciles
+```
+###
+
+```{r}
+g_ingresosydeciles <- (g_fuente_de_ingresos / g_deciles) +
+  plot_layout(heights = c(1, 2)) +
+  
+  theme(
+    plot.caption = element_text(size = 9, hjust = 1),
+    plot.margin = margin(5, 20, 5, 20)
+  )
+
+g_ingresosydeciles
+```
+
+
+```{r}
+ggsave("graficos/ingresosdeciles.png", plot=g_ingresosydeciles,bg="white",width = 8,height = 10,)
+```
+
+#### Resumen de las variables a trabajar
+
+```{r}
+dfh1$RDECIFR<-as.factor(dfh1$RDECIFR)
+dfh1$DECIFR<-as.factor(dfh1$DECIFR)
+dfh1 %>% select(c( IPCF,	RDECIFR,DECIFR, V13, V14, V15, V16, V17, ing_desemp, ay_esp, ing_pas,becas,jefas_h)) %>% 
+summary()
+```
+
+```{r eval=FALSE}
+library(dplyr)
+library(tidyr)
+
+poblacion_total <- dfh1 %>% 
+  select(V13:V17) %>% 
+  pivot_longer(cols = everything(),
+               names_to = "variable",
+               values_to = "valor") %>% 
+  group_by(variable, valor) %>% 
+  summarise(n = n(), .groups = "drop") %>% 
+  group_by(variable) %>% 
+  mutate(porcentaje = round(100 * n / sum(n), 2))
+
+poblacion_total
+```
+
+## Base jefas de hogar
+
+Ahora, filtro la base dfi1 para ver estas variables en los hogares cuya jefa de hogar es mujer:
+
+Para ello, utilizo las variables que vinculan ambas bases (CODUSU, NRO_HOGAR). Lo vinculo con el comando inner_join. Este comando permite unificar dos data frames mediante vbles compartidas pero elimina las filas no coincidentes (PARA TENER EN CUENTA)
+
+## resumen de las varaibles de endeudamiento para las jefas de hogar
+
+```{r}
+summary(dfh1[, c("V13","V14","V15","V16","V17")])
+```
+
+## Porcentaje de poblaciontotal según adquisicion  de  deudas 
+```{r}
+poblacion_total <- dfh1 %>% 
+  select(V13:V17) %>% 
+  pivot_longer(
+    cols = everything(),
+    names_to = "variable",
+    values_to = "valor"
+  ) %>% 
+  filter(valor == 1) %>% 
+  group_by(variable) %>% 
+  summarise(
+    porcentaje = round(100 * n() / nrow(dfh1), 0),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    variable = recode(
+      variable,
+      V13 = "Uso de ahorros",
+      V14 = "Préstamos familiares/amigos",
+      V15 = "Préstamos bancarios",
+      V16 = "Compras en cuotas/fiado",
+      V17 = "Venta de bienes"
+    )
+  )
+
+poblacion_total
+
+```
+
+```{r}
+poblacion_total <- poblacion_total %>%
+  mutate(
+    variable = factor(
+      variable,
+      levels = c(
+        "Uso de ahorros",
+        "Préstamos familiares/amigos",
+        "Préstamos bancarios",
+        "Compras en cuotas/fiado",
+        "Venta de bienes"
+      )
+    )
+  )
+```
+
+
+```{r}
+g_end_poblacion_total <- ggplot(
+  poblacion_total,
+  aes(
+    x = reorder(variable, porcentaje),
+    y = porcentaje
+  )
+) +
+  geom_col(fill = "#4DA3D9", width = 0.75) +
+  geom_text(
+    aes(label = paste0(porcentaje, "%")),
+    hjust = -0.15,
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    limits = c(0, max(poblacion_total$porcentaje) + 8),
+    expand = expansion(mult = c(0, 0.02))
+  ) +
+  labs(
+    title = "Estrategias utilizadas para afrontar gastos",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks = element_blank(),
+    plot.title = element_text(face = "bold"),
+    plot.margin = margin(5, 35, 5, 5)
+  )
+
+g_end_poblacion_total
+```
+
+
+```{r}
+comparacion <- dfh1 %>%
+  select(jefas_h, V13:V17) %>%
+  pivot_longer(
+    cols = V13:V17,
+    names_to = "variable",
+    values_to = "valor"
+  ) %>%
+  filter(valor == 1) %>%
+  group_by(jefas_h, variable) %>%
+  summarise(
+    n = n(),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    dfh1 %>%
+      group_by(jefas_h) %>%
+      summarise(total = n(), .groups = "drop"),
+    by = "jefas_h"
+  ) %>%
+  mutate(
+    porcentaje = round(100 * n / total, 1),
+    variable = recode(
+      variable,
+      V13 = "Uso de ahorros",
+      V14 = "Préstamos familiares/amigos",
+      V15 = "Préstamos bancarios",
+      V16 = "Compras en cuotas/fiado",
+      V17 = "Venta de bienes"
+    )
+  )
+
+comparacion
+```
+
+### Preparpo para graficar 
+
+
+```{r}
+comparacion <- comparacion %>%
+  mutate(
+    variable = factor(
+      variable,
+      levels = c(
+        "Uso de ahorros",
+        "Préstamos familiares/amigos",
+        "Préstamos bancarios",
+        "Compras en cuotas/fiado",
+        "Venta de bienes"
+      )
+    )
+  )
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+comparacion <- comparacion %>%
+  mutate(
+    grupo = ifelse(jefas_h == 1,
+                   "Jefas de hogar",
+                   "Resto de hogares")
+  )
+
+g_comparacion <- ggplot(
+  comparacion,
+  aes(
+    x = variable,
+    y = porcentaje,
+    fill = grupo
+  )
+) +
+  geom_col(
+    position = position_dodge(width = 0.8),
+    width = 0.7
+  ) +
+  geom_text(
+    aes(label = paste0(round(porcentaje,0), "%")),
+    position = position_dodge(width = 0.8),
+    hjust = -0.1,
+    size = 3.5
+  ) +
+  coord_flip(clip = "off") +
+  scale_fill_manual(
+    values = c(
+      "Jefas de hogar" = "#F28E2B",
+      "Resto de hogares" = "#4DA3D9"
+    )
+  ) +
+  scale_y_continuous(
+    limits = c(0, max(comparacion$porcentaje) + 10)
+  ) +
+  labs(
+    title = "",
+    subtitle = "",
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks = element_blank(),
+    legend.position = "bottom",
+    plot.title = element_text(face = "bold")
+  )
+
+g_comparacion
+```
+```{r}
+ggsave("graficos/g_comapracion_Jefas_h_resto.png",plot=g_comparacion, bg="white",width = 8,
+  height = 6)
+```
+
+## grafico endeudamiento
+
+
+
+### Creo las df
+```{r}
+
+
+t_gastos_todos_h <- data.frame(
+  categoria = c("Uso de ahorros", 
+               "Préstamos familiares", 
+               "Préstamos bancarios", 
+               "Compras en cuotas/fiado", 
+               "Venta de bienes"),
+  porcentaje = c(29, 14, 14, 51, 8)
+)
+
+t_gastos_todos_Jefas_h <- data.frame(
+  categoria = c("Uso de ahorros", 
+               "Préstamos familiares", 
+               "Préstamos bancarios", 
+               "Compras en cuotas/fiado", 
+               "Venta de bienes"),
+  porcentaje = c(28,15,14,50,8)
+)
+t_gastos_todos_h$color <- ifelse(
+t_gastos_todos_h$categoria %in% c("Compras en cuotas/fiado", "Uso de ahorros"),
+  "Destacado",
+  "Resto"
+)
+t_gastos_todos_Jefas_h$color <- ifelse(
+t_gastos_todos_Jefas_h$categoria %in% c("Compras en cuotas/fiado", "Uso de ahorros"),
+  "Destacado",
+  "Resto"
+)
+
+
+
+
+
+```
+
+#### Grafico endeudamiento todos los hogares
+```{r}
+endeudamiento <- ggplot(
+  t_gastos_todos_h,
+  aes(x = reorder(categoria, porcentaje),
+      y = porcentaje,
+      fill = color)
+) +
+  geom_col(width = 0.75) +
+  geom_text(
+    aes(label = paste0(porcentaje, "%")),
+    hjust = -0.1,
+    size = 4
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Destacado" = "#4DA3D9",
+      "Resto" = "grey75"
+    )
+  ) +
+  coord_flip(clip = "off") +
+  scale_y_continuous(
+    limits = c(0, max(t_gastos_todos_h$porcentaje) + 8),
+    expand = expansion(mult = c(0, 0.02))
+  ) +
+  labs(
+    title = "",
+    subtitle = "",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "none",
+    panel.grid = element_blank(),
+    axis.text.y = element_text(size = 11),
+    axis.text.x = element_blank(),
+    axis.ticks = element_blank(),
+    plot.title = element_text(face = "bold"),
+    plot.margin = margin(5, 35, 5, 5)
+  )
+
+endeudamiento
+```
+#### Grafico endeudamiento jefas hogar
+```{r}
+#### Grafico endeudamiento jefas hogar
+g_endeudamiento_Jefas_h<-ggplot(t_gastos_todos_Jefas_h, aes(x = reorder(categoria, porcentaje), y = porcentaje,fill=color)) +
+  geom_col() +
+  geom_text(aes(label = paste0(porcentaje, "%")), 
+            hjust = -0.1, size = 4) +
+  scale_fill_manual(values = c(
+  "Destacado" = "#4DA3D9",
+  "Resto" = "grey75"
+)) +
+  coord_flip() +
+  labs(
+    title = "",
+    subtitle = "",
+    x = "",
+    y = ""
+  ) +
+  
+  expand_limits(y = 60) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank()
+)+
+  
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text.y = element_text(size = 11),legend.position = "none",
+    axis.text.x = element_blank(),
+  axis.ticks.x = element_blank(),
+    panel.grid = element_blank(),   # elimina todas las líneas de fondo
+    
+  )
+g_endeudamiento_Jefas_h
+```
+
+```{r}
+ggsave("graficos/endeudamiento.png",plot=endeudamiento, bg="white",width = 8,
+  height = 6)
+```
+
+
+```{r}
+ggsave("graficos/g_endeudamiento_Jefas_h.png",plot=g_endeudamiento_Jefas_h, bg="white",width = 8,
+  height = 6)
+```
+
+
+
+```{r}
+# vemos que tiene DECIFR
+
+summary(dfh1[,"DECIFR"])
+```
+
+![](images/Captura%20de%20pantalla%202026-03-18%20161914.png)
+
+## Creo el indicador de endeudamiento
+
+Marcar si está endeudado esto es alguna de las varaibls v13, v14,15,v16, v17 tiene 1
+
+```{r}
+dfh1$endeudado<- ifelse(dfh1$V14== 1| dfh1$V15== 1|dfh1$V16 == 1, 1, 0)
+```
+
+```{r}
+table(dfh1$endeudado)
+100*prop.table(table(dfh1$endeudado))
+```
+
+
+## Creo una varible de Estres financiero
+
+Creo la variaable estres finanicero si el hogar ha comezado a vender bienes  o consumir ahorros
+
+```{r}
+dfh1$estres_fin<- ifelse(dfh1$V13== 1 |dfh1$V17 == 1, 1, 0)
+table(dfh1$estres_fin)
+100*prop.table(table(dfh1$estres_fin))
+```
+
+**el 32 %  de los hogares tienen estres financiero** 
+
+### grafico de estres finaicero
+
+```{r}
+puntos_estres_finaicero<- data.frame(
+  id = 1:100
+) %>%
+  mutate(
+    fila = ceiling(id / 10),
+    columna = id - (fila - 1) * 10,
+    grupo = ifelse(id <= 68, "Destacado", "Resto")
+  )
+
+g_puntos_estres_finaicero<-ggplot(puntos_estres_finaicero,
+       aes(x = columna,
+           y = -fila,
+           color = grupo)) +
+  geom_point(size = 8) +
+  scale_color_manual(values = c(
+    "Destacado" = "#F28E2B",
+    "Resto" = "#00A6E8"
+  )) +
+  coord_equal() +
+  theme_void() +
+  theme(
+    legend.position = "none"
+  )
+g_puntos_estres_finaicero
+```
+```{r}
+ggsave( "graficos/estres finaicero .png",plot=g_puntos_estres_finaicero,width = 6,
+  height = 6, bg="white")
+
+```
+
+## ¿qúe hogares son los que están sufriendo el estrés finaciero?
+Cruzo DEFIR con estres_fin
+
+```{r}
+table(dfh1$estres_fin,dfh1$DECIFR)
+round(100*prop.table(table(dfh1$estres_fin,dfh1$DECIFR),2),0)
+```
+
+
+```{r}
+#estres deciles 1 a 10
+t_estres <- data.frame(
+  decil = 1:10,
+  porcentaje = c(31, 29, 29, 36, 35, 32, 36, 35, 35, 33)
+)
+g_t_estres_financiero<-ggplot(t_estres, aes(x = factor(decil), y = porcentaje)) +
+  geom_col(fill = "#4DA3D9", width = 0.7) +
+  geom_text(
+    aes(label = paste0(porcentaje, "%")),
+    vjust = -0.4,
+    size = 4
+  ) +
+  labs(
+    title = "",
+    x = "",
+    y = ""
+  ) +
+  expand_limits(y = 40) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.y = element_blank()
+  )
+
+g_t_estres_financiero
+```
+```{r}
+ggsave( "graficos/g_t_estres_financiero .png",plot=g_t_estres_financiero,width = 6,
+  height = 6, bg="white")
+
+```
+
+## solo uso de ahorros
+```{r}
+
+table(dfh1$V17,dfh1$DECIFR)
+round(100*prop.table(table(dfh1$V17,dfh1$DECIFR),2),0)
+```
+```{r}
+
+table(dfh1$V13,dfh1$DECIFR)
+round(100*prop.table(table(dfh1$V13,dfh1$DECIFR),2),0)
+```
+##grafico para venrta de bienes y ahorros 
+
+
+
+
+
+```{r}
+library(tidyverse)
+
+datos <- data.frame(
+  decil = factor(1:10),
+  ahorro = c(26, 25, 26, 32, 32, 29, 33, 32, 33, 31),
+  venta_bienes = c(10, 10, 7, 9, 10, 7, 7, 6, 6, 5)
+)
+
+datos_long <- datos %>%
+  pivot_longer(
+    cols = c(ahorro, venta_bienes),
+    names_to = "estrategia",
+    values_to = "porcentaje"
+  )
+
+g_estres_financiero<-ggplot(datos_long,
+       aes(x = decil,
+           y = porcentaje,
+           fill = estrategia)) +
+  geom_col(position = position_dodge(width = 0.8),
+           width = 0.7) +
+  geom_text(aes(label = paste0(porcentaje, "%")),  
+            position = position_dodge(width = 0.8),
+            vjust = -0.3,
+            size = 3.5) +
+  scale_fill_manual(
+    values = c(
+      "ahorro" = "#4DA3D9",
+      "venta_bienes" = "#F28E2B"
+    ),
+    labels = c(
+      "Uso de ahorros",
+      "Venta de bienes"
+    )
+  ) +
+  labs(
+    title = "",
+    x = "Decil de ingreso",
+    y = "",
+    fill = ""
+  ) +
+  expand_limits(y = 40) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position="bottom" 
+  )
+g_estres_financiero
+```
+```{r}
+ggsave("graficos/g_estres_financiero.png",plot=g_estres_financiero, bg="white",width = 8,
+  height = 6)
+```
+
+###########
+
+# hogares fianciaramente vulnerables para todos y las Jefas
+
+```{r}
+dfh1$vulnerable<- ifelse(  dfh1$V13 == 1|dfh1$V14 == 1 | dfh1$V15 == 1| dfh1$V16 == 1| dfh1$V17 == 1 , 1, 0)
+table(dfh1$vulnerable)
+round(100*prop.table((table(dfh1$vulnerable))),0)
+```
+
+```{r}
+tabla_ingreso <- dfh1 %>% 
+  select(DECIFR, V13, V14, V15, V16, V17) %>% 
+  pivot_longer(cols = c(V13, V14, V15, V16, V17),
+               names_to = "variable",
+               values_to = "si") %>% 
+  filter(!is.na(DECIFR),DECIFR != 12, !is.na(si)) %>% 
+  group_by(DECIFR, variable) %>% 
+  summarise(porcentaje = mean(si, na.rm = TRUE) * 100, .groups = "drop") %>% 
+  mutate(
+    variable = recode(variable,
+      V13 = "Uso de ahorros",
+      V14 = "Préstamos familiares",
+      V15 = "Préstamos bancarios",
+      V16 = "Compras en cuotas",
+      V17 = "Venta de bienes"
+    )
+  )
+tabla_ingreso
+```
+
+```{r}
+#str(tabla_ingreso$DECIFR)
+# esta como numero
+#lo tranfomro a factor
+
+tabla_ingreso$DECIFR<-as.factor(tabla_ingreso$DECIFR)
+```
+
+```{r}
+library(dplyr)
+
+etiquetas <- tabla_ingreso %>%
+  group_by(variable) %>%
+  slice_max(order_by = DECIFR, n = 1) %>%
+  ungroup()
+```
+
+
+```{r}
+gastos_segun_deciles<-ggplot(tabla_ingreso,
+       aes(x = DECIFR,
+           y = porcentaje,
+           color = variable,
+           group = variable)) +
+  geom_line(linewidth = 1.2) +
+  #geom_point(size = 2) +
+
+  geom_text(
+    data = etiquetas,
+    aes(label = variable),
+    hjust = 0,
+  nudge_x = 0.3,
+  size = 5,
+  show.legend = FALSE
+  ) +
+
+  scale_color_manual(
+  values = c(
+    "Compras en cuotas" = "#F28E2B",      
+    "Uso de ahorros" = "#4DA3D9",         
+    "Préstamos bancarios" = "#AE123A",   
+    "Préstamos familiares" = "#DEB0D0",   
+    "Venta de bienes" = "#3C8200"        
+  )
+  ) +
+scale_x_discrete(
+  labels = paste0("D", 0:10)
+) +
+  scale_y_continuous(
+  breaks = seq(0, 80, by = 5)
+) +
+  coord_cartesian(
+  xlim = c(0, 14),
+  clip = "off"
+) +
+
+  labs(
+    title = "",
+    subtitle = "",
+    x="",
+    caption = "Decil de ingreso (D0 = sin ingresos , 10 = ingresos más altos)",
+    y = "% de hogares"
+  ) +
+
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+     panel.grid = element_blank(),   # elimina todas las líneas de fondo
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(5, 80, 5, 5)
+  )
+gastos_segun_deciles
+```
+
+```{r}
+ggsave("graficos/gastos_según_deciles.png", plot = gastos_segun_deciles,  width = 12, height = 8 , dpi = 300,  bg="white")
+```
+
+
+```{r}
+library(ggplot2)
+
+ggplot(tabla_ingreso, 
+       aes(x = DECIFR, y = porcentaje, 
+           color = variable, group = variable)) +
+  geom_line(linewidth = 1.2) +
+  #geom_point(size = 2) +
+  scale_color_manual(
+  values = c(
+    "Compras en cuotas" = "#F28E2B",      # naranja principal
+    "Uso de ahorros" = "#4DA3D9",         # azul principal
+    "Préstamos bancarios" = "#AE123A",    # naranja oscuro
+    "Préstamos familiares" = "#DEB0D0",   # azul oscuro
+    "Venta de bienes" = "#3C8200"        # azul claro
+  )
+
+)+
+  scale_x_discrete(labels = paste0("D", 0:10))+
+  scale_y_continuous(breaks = seq(0, 100, by = 10))+
+  labs(
+    title = "",
+    subtitle = "",
+    caption = " Decil de ingreso:  0 = sin ingresos, 10 = más alto",
+    y = "Porcentaje de hogares",
+    x="",
+    color = ""
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),   # elimina todas las líneas de fondo
+    plot.title = element_text(face = "bold"),
+    legend.position = "right"
+  )
+```
+
+
+
+
+# #####################################
+## Creo indice de vunerabiliad economica
+Sumamasos los valores de V13 a v17 así tenemos un indice de vulnerabilidad que va desde 0 ninguna a 5 maxima
+
+```{r}
+dfh1$vulnerabilidad<-dfh1$V13+dfh1$V14+dfh1$V15+dfh1$V16+dfh1$V17
+
+round(100*prop.table (table(dfh1$vulnerabilidad)),2)
+```
+
+```{r}
+vulnerabilidad_jefas <- round(
+  100 * prop.table(
+    table(
+      dfh1 %>%
+        filter(jefas_h == 1) %>%
+        pull(vulnerabilidad)
+    )
+  ),
+  2
+)
+
+vulnerabilidad_jefas
+```
+```{r}
+vulnerabilidad_otros <- round(
+  100 * prop.table(
+    table(
+      dfh1 %>%
+        filter(jefas_h == 0) %>%
+        pull(vulnerabilidad)
+    )
+  ),
+  2
+)
+
+vulnerabilidad_otros
+```
+
+
+
+```{r}
+vulnerabilidad <- data.frame(
+  Vulnerabilidad = names(vulnerabilidad_otros),
+  Otros = as.numeric(vulnerabilidad_otros),
+  Jefas = as.numeric(vulnerabilidad_jefas)
+)
+
+vulnerabilidad
+```
+
+```{r}
+library(tidyr)
+library(ggplot2)
+
+vulnerabilidad_long <- vulnerabilidad %>%
+  pivot_longer(
+    cols = c(Otros, Jefas),
+    names_to = "grupo",
+    values_to = "porcentaje"
+  )
+
+ggplot(vulnerabilidad_long,
+       aes(x = Vulnerabilidad,
+           y = porcentaje,
+           fill = grupo)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = paste0(porcentaje, "%")),
+            position = position_dodge(width = 0.9),
+            vjust = -0.3) +
+  scale_fill_manual(
+    values = c(
+      "Otros" = "#4DA3D9",
+      "Jefas" = "#F28E2B"
+    )
+  ) +
+  labs(
+    x = "",
+    y = "",
+    fill = ""
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank()
+  )
+```
+
+
+
