@@ -159,7 +159,7 @@ g_puntos_jefa_hogar
 ```
 
 ```{r}
-ggsave( "graficos/puntos jefa .png",plot=g_puntos_jefa_hogar,width = 6,
+( "graficos/puntos jefa .png",plot=g_puntos_jefa_hogar,width = 6,
   height = 6, bg="white")
 
 ```
@@ -233,7 +233,7 @@ g_fuente_de_ingresos
 ```
 
 ```{r}
-ggsave( "graficos/fuente_ingreso.png",plot=g_fuente_de_ingresos,width = 8,
+( "graficos/fuente_ingreso.png",plot=g_fuente_de_ingresos,width = 8,
   height = 6, bg="white")
 
 ```
@@ -315,7 +315,7 @@ g_ingresosydeciles
 
 
 ```{r}
-ggsave("graficos/ingresosdeciles.png", plot=g_ingresosydeciles,bg="white",width = 8,height = 10,)
+("graficos/ingresosdeciles.png", plot=g_ingresosydeciles,bg="white",width = 8,height = 10,)
 ```
 
 #### Resumen de las variables a trabajar
@@ -553,7 +553,7 @@ g_comparacion <- ggplot(
 g_comparacion
 ```
 ```{r}
-ggsave("graficos/g_comapracion_Jefas_h_resto.png",plot=g_comparacion, bg="white",width = 8,
+("graficos/g_comapracion_Jefas_h_resto.png",plot=g_comparacion, bg="white",width = 8,
   height = 6)
 ```
 
@@ -680,13 +680,13 @@ g_endeudamiento_Jefas_h
 ```
 
 ```{r}
-ggsave("graficos/endeudamiento.png",plot=endeudamiento, bg="white",width = 8,
+("graficos/endeudamiento.png",plot=endeudamiento, bg="white",width = 8,
   height = 6)
 ```
 
 
 ```{r}
-ggsave("graficos/g_endeudamiento_Jefas_h.png",plot=g_endeudamiento_Jefas_h, bg="white",width = 8,
+("graficos/g_endeudamiento_Jefas_h.png",plot=g_endeudamiento_Jefas_h, bg="white",width = 8,
   height = 6)
 ```
 
@@ -755,7 +755,7 @@ g_puntos_estres_finaicero<-ggplot(puntos_estres_finaicero,
 g_puntos_estres_finaicero
 ```
 ```{r}
-ggsave( "graficos/estres finaicero .png",plot=g_puntos_estres_finaicero,width = 6,
+( "graficos/estres finaicero .png",plot=g_puntos_estres_finaicero,width = 6,
   height = 6, bg="white")
 
 ```
@@ -799,7 +799,7 @@ g_t_estres_financiero<-ggplot(t_estres, aes(x = factor(decil), y = porcentaje)) 
 g_t_estres_financiero
 ```
 ```{r}
-ggsave( "graficos/g_t_estres_financiero .png",plot=g_t_estres_financiero,width = 6,
+( "graficos/g_t_estres_financiero .png",plot=g_t_estres_financiero,width = 6,
   height = 6, bg="white")
 
 ```
@@ -875,7 +875,7 @@ g_estres_financiero<-ggplot(datos_long,
 g_estres_financiero
 ```
 ```{r}
-ggsave("graficos/g_estres_financiero.png",plot=g_estres_financiero, bg="white",width = 8,
+("graficos/g_estres_financiero.png",plot=g_estres_financiero, bg="white",width = 8,
   height = 6)
 ```
 
@@ -985,7 +985,7 @@ gastos_segun_deciles
 ```
 
 ```{r}
-ggsave("graficos/gastos_según_deciles.png", plot = gastos_segun_deciles,  width = 12, height = 8 , dpi = 300,  bg="white")
+("graficos/gastos_según_deciles.png", plot = gastos_segun_deciles,  width = 12, height = 8 , dpi = 300,  bg="white")
 ```
 
 
